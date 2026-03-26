@@ -1,0 +1,39 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "nikitaram2799/devops-app"
+        KUBECONFIG_PATH = "/var/jenkins_home/.kube/config"
+    }
+
+    stages {
+
+        stage('Clone Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/nikitaram882799/devops-project.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t $IMAGE_NAME app/'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withDockerRegistry([credentialsId: 'dockerhub-cred', url: '']) {
+                    sh 'docker push $IMAGE_NAME'
+                }
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+                // Make sure Jenkins agent has kubeconfig and kubectl installed
+                sh 'kubectl apply -f k8s/deployment.yaml'
+                sh 'kubectl apply -f k8s/service.yaml'
+            }
+        }
+    }
+}
