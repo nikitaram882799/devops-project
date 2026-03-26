@@ -3,8 +3,11 @@ pipeline {
 
     environment {
         IMAGE_NAME = "nikitaram2799/devops-app"
-        AWS_REGION = "us-east-2"                // Change to your region
+        AWS_REGION = "us-east-2"                  // Change to your AWS region
         KUBECONFIG_PATH = "/var/jenkins_home/.kube/config"
+        DOCKER_CRED_ID = "dockerhub-cred"
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
     }
 
     stages {
@@ -17,34 +20,49 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $IMAGE_NAME app/'
+                script {
+                    // Get the current Git commit SHA
+                    def GIT_SHA = sh(returnStdout: true, script: "git rev-parse --short HEAD").trim()
+                    env.IMAGE_TAG = "${IMAGE_NAME}:${GIT_SHA}"
+                    
+                    // Build Docker image with SHA tag
+                    sh "docker build -t ${env.IMAGE_TAG} app/"
+                }
             }
         }
 
         stage('Push to Docker Hub') {
             steps {
-                withDockerRegistry([credentialsId: 'dockerhub-cred', url: '']) {
-                    sh 'docker push $IMAGE_NAME'
+                withDockerRegistry([credentialsId: "${DOCKER_CRED_ID}", url: '']) {
+                    sh "docker push ${env.IMAGE_TAG}"
                 }
             }
         }
 
         stage('Configure AWS & Kubeconfig') {
             steps {
-                // AWS credentials stored in Jenkins (ID: aws-eks-cred)
-                withAWS(credentials: 'aws-eks-cred', region: "$AWS_REGION") {
-                    // Create kubeconfig automatically for EKS cluster
-                    sh "aws eks update-kubeconfig --name devops-cluster --region $AWS_REGION"
-                }
+                // Update kubeconfig for your EKS cluster
+                sh "aws eks update-kubeconfig --name devops-cluster --region ${AWS_REGION}"
             }
         }
 
         stage('Deploy to EKS') {
             steps {
-                // Deploy Kubernetes manifests
-                sh 'kubectl apply -f k8s/deployment.yaml'
-                sh 'kubectl apply -f k8s/service.yaml'
+                // Update Kubernetes deployment with new image
+                sh "kubectl set image deployment/devops-app devops-app=${env.IMAGE_TAG} --record"
+                
+                // Apply other manifests (services, configmaps, etc.)
+                sh "kubectl apply -f k8s/service.yaml"
             }
+        }
+    }
+
+    post {
+        success {
+            echo "Deployment completed successfully!"
+        }
+        failure {
+            echo "Deployment failed. Check the logs above."
         }
     }
 }
