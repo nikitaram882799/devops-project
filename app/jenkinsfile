@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = "nikitaram2799/devops-app"
+        AWS_REGION = "us-east-2"                // Change to your region
         KUBECONFIG_PATH = "/var/jenkins_home/.kube/config"
     }
 
@@ -28,9 +29,19 @@ pipeline {
             }
         }
 
+        stage('Configure AWS & Kubeconfig') {
+            steps {
+                // AWS credentials stored in Jenkins (ID: aws-eks-cred)
+                withAWS(credentials: 'aws-eks-cred', region: "$AWS_REGION") {
+                    // Create kubeconfig automatically for EKS cluster
+                    sh "aws eks update-kubeconfig --name devops-cluster --region $AWS_REGION"
+                }
+            }
+        }
+
         stage('Deploy to EKS') {
             steps {
-                // Make sure Jenkins agent has kubeconfig and kubectl installed
+                // Deploy Kubernetes manifests
                 sh 'kubectl apply -f k8s/deployment.yaml'
                 sh 'kubectl apply -f k8s/service.yaml'
             }
