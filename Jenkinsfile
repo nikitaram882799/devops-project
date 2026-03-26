@@ -48,11 +48,14 @@ pipeline {
 
         stage('Deploy to EKS') {
             steps {
-                // Update Kubernetes deployment with new image
-                sh "kubectl set image deployment/devops-app devops-app=${env.IMAGE_TAG} --record"
-                
-                // Apply other manifests (services, configmaps, etc.)
-                sh "kubectl apply -f k8s/service.yaml"
+                // Set new image for deployment
+                sh "KUBECONFIG=${KUBECONFIG_PATH} kubectl set image deployment/devops-app devops-app=${env.IMAGE_TAG} --record"
+
+                // Apply other Kubernetes manifests (services, configmaps, etc.)
+                sh "KUBECONFIG=${KUBECONFIG_PATH} kubectl apply -f k8s/service.yaml"
+
+                // Verify deployment rollout
+                sh "KUBECONFIG=${KUBECONFIG_PATH} kubectl rollout status deployment/devops-app"
             }
         }
     }
