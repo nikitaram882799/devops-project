@@ -16,4 +16,4 @@ spec:
       - name: devops-app
         image: nikitaram2799/devops-app:latest
         ports:
-        - containerPort: 8080
+        - containerPort: 3000
