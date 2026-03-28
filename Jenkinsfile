@@ -51,11 +51,11 @@ pipeline {
             }
         }
 
-        stage('Deploy to EKS') {
+       stage('Deploy to EKS') {
             steps {
                 sh """
-                kubectl apply -f k8s/deployment.yaml
-                kubectl apply -f k8s/service.yaml
+                kubectl apply -f app/k8s/deployment.yaml
+                kubectl apply -f app/k8s/service.yaml
                 kubectl set image deployment/devops-app devops-app=${IMAGE_TAG}
                 kubectl rollout status deployment/devops-app
                 """
