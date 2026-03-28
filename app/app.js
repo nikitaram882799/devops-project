@@ -9,4 +9,6 @@ app.get("/version", (req, res) => {
   res.json({ version: "1.0.0" });
 });
 
-app.listen(3000, () => console.log("Server running on port 3000"));
+app.listen(3000, "0.0.0.0", () => {
+  console.log("Server running on port 3000");
+});
