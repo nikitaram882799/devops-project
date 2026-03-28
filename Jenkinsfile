@@ -3,8 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = "nikitaram2799/devops-app"
-        AWS_REGION = "us-east-2"                  // Change to your AWS region
-        KUBECONFIG_PATH = "/var/jenkins_home/.kube/config"
+        AWS_REGION = "us-east-2"
         DOCKER_CRED_ID = "dockerhub-cred"
         AWS_ACCESS_KEY_ID = credentials('aws-access-key')
         AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
@@ -21,11 +20,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Get the current Git commit SHA
                     def GIT_SHA = sh(returnStdout: true, script: "git rev-parse --short HEAD").trim()
                     env.IMAGE_TAG = "${IMAGE_NAME}:${GIT_SHA}"
-                    
-                    // Build Docker image with SHA tag
                     sh "docker build -t ${env.IMAGE_TAG} app/"
                 }
             }
@@ -39,23 +35,30 @@ pipeline {
             }
         }
 
-        stage('Configure AWS & Kubeconfig') {
+        stage('Configure AWS') {
             steps {
-                // Update kubeconfig for your EKS cluster
+                sh '''
+                aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                aws configure set region ${AWS_REGION}
+                '''
+            }
+        }
+
+        stage('Update kubeconfig') {
+            steps {
                 sh "aws eks update-kubeconfig --name devops-cluster --region ${AWS_REGION}"
             }
         }
 
         stage('Deploy to EKS') {
             steps {
-                // Set new image for deployment
-                sh "KUBECONFIG=${KUBECONFIG_PATH} kubectl set image deployment/devops-app devops-app=${env.IMAGE_TAG} --record"
-
-                // Apply other Kubernetes manifests (services, configmaps, etc.)
-                sh "KUBECONFIG=${KUBECONFIG_PATH} kubectl apply -f k8s/service.yaml"
-
-                // Verify deployment rollout
-                sh "KUBECONFIG=${KUBECONFIG_PATH} kubectl rollout status deployment/devops-app"
+                sh """
+                kubectl apply -f k8s/deployment.yaml
+                kubectl apply -f k8s/service.yaml
+                kubectl set image deployment/devops-app devops-app=${IMAGE_TAG}
+                kubectl rollout status deployment/devops-app
+                """
             }
         }
     }
@@ -65,7 +68,7 @@ pipeline {
             echo "Deployment completed successfully!"
         }
         failure {
-            echo "Deployment failed. Check the logs above."
+            echo "Deployment failed. Check logs."
         }
     }
 }
